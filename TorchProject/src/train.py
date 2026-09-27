@@ -134,6 +134,16 @@ def run_training(model, train_loader, val_loader, num_epochs: int = 30,
             f"time={epoch_time:.1f}s"
         )
 
+        # Decide FIRST whether this epoch is a new best, and update
+        # best_accuracy immediately — before saving anything. This avoids
+        # last_checkpoint being saved with a stale best_metric (a bug that
+        # would corrupt resume: a worse later epoch could overwrite a
+        # genuinely better earlier checkpoint after resuming from a stale
+        # best_metric).
+        is_new_best = val_acc > best_accuracy
+        if is_new_best:
+            best_accuracy = val_acc
+
         # Always save the latest state — this is what resume should load,
         # so no epoch's progress is ever lost even if val_acc didn't improve.
         save_checkpoint(model, optimizer, scheduler, epoch, best_accuracy,
@@ -141,8 +151,7 @@ def run_training(model, train_loader, val_loader, num_epochs: int = 30,
 
         # Additionally save a separate "best" checkpoint only on improvement —
         # this is the one used for evaluation/inference.
-        if val_acc > best_accuracy:
-            best_accuracy = val_acc
+        if is_new_best:
             save_checkpoint(model, optimizer, scheduler, epoch, best_accuracy,
                              checkpoint_path, history=history)
             print(f"  -> New best model saved (val_acc={best_accuracy * 100:.2f}%)")
